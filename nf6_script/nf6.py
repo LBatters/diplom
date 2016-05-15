@@ -2,7 +2,37 @@
 # -*- coding: utf-8 -*-
 
 import psycopg2, sys, getpass, ConfigParser
-import pony
+#*************************Вспомогательные функции**************************
+#--------------------------------------------------------------------------
+#вспомогательная функция для парсинга конфигурационного файла.
+def ConfigSectionMap(section, config):
+    dict1 = {}
+    options = config.options(section)
+    for option in options:
+        try:
+            print ("Reading the %s in configuration file..." % option)
+            dict1[option] = config.get(section, option)
+            if dict1[option] == -1:
+                DebugPrint("skip: %s" % option)
+        except:
+            print("exception on %s!" % option)
+            dict1[option] = None
+    return dict1
+
+#функция для подключения к БД
+def connection(database, user, password, host):
+    try:
+        print ("Trying to connect to the database %s ..." % database)
+        conn = psycopg2.connect(database=database,
+                                user=user,
+                                password=password,
+                                host=host)
+        return conn.cursor()
+    except Exception, e:
+        print "Exception while connect:"
+        print e.pgerror
+#**************************************************************************
+#--------------------------------------------------------------------------
 
 if len(sys.argv) != 2:
     print "You should to point file name which you want to save result"
@@ -10,69 +40,35 @@ if len(sys.argv) != 2:
 
 #Сначала собираем информацию для создания запроса
 
-#Выбираем способ задания конфигурации (вручную т.е через консоль или через конфигурационный файл)
-is_manual = raw_input("Manual mode or configuration file mode?(Tap 0 or 1 respectively)\n")
+#Открываем конфигурационный файл
+try:
+    config = ConfigParser.ConfigParser()
+    config.read("conf.ini")
+except Exception, e:
+    print "Somethin goes wrong while reading the configuration file."
+    print e
+    print "Exit from programme"
+    sys.exit()
 
-#массив для хранения информации о подключении
-arr_connect_info = []
-
-#Если выбран ручной режим
-if is_manual == "0":
-    #Запрашиваем информацию о подключениии к БД
-    connect_info = raw_input("Input database, user, host in point order:\n")
-    arr_connect_info = connect_info.split(" ")
-
-#Если выбран режим конфигурационного файла
-else:
-    #Открываем конфигурационный файл
-    try:
-        config = ConfigParser.ConfigParser()
-        config.read("conf.ini")
-    except Exception, e:
-        print "Somethin goes wrong while reading the configuration file."
-        print e
-        print "Exit from programme"
-        sys.exit()
-
-    info = pony.ConfigSectionMap("DataBaseInfo",config)
-
-    arr_connect_info.append(info["database"])
-    arr_connect_info.append(info["user"])
-    arr_connect_info.append(info["host"])
+info = ConfigSectionMap("DataBaseInfo",config)
 
 passw = getpass.getpass(prompt= "Input password for database:\n")
 
-#Подключаемся к БД
-cur = pony.connection(database=arr_connect_info[0],
-                      user=arr_connect_info[1],
-                      password=passw,
-                      host=arr_connect_info[2])
+#Подкючаемся к БД
+cur = connection(info["database"],
+                 info["user"],
+                 passw,
+                 info["host"])
 
-if is_manual == "0":
-    #Узнаем в каком порядке идут колонки в таблицах
-    order_column = raw_input("Input in which order is your column(id, date, attribute) in table. For example: date id attribute\n")
-    arr_order_column = order_column.split(" ")
-    count_col = 0
-
-    #Парсим полученную строку и определяем порядок колонок для последующей работы
-    for column in arr_order_column:
-        if column == "date":
-            column_with_date = count_col
-        if column == "id":
-            column_with_id = count_col
-        if column == "attribute":
-            column_with_name = count_col
-        count_col = count_col+1
-#или берем все из конфигурационного файла
-else:
-    info = pony.ConfigSectionMap("OrderColumn",config)
-    column_with_date = int(info["date"])
-    column_with_id = int(info["id"])
-    column_with_name = int(info["attribute"])
+#информация о порядке следования колонок в таблицах
+info = ConfigSectionMap("OrderColumn",config)
+column_with_date = int(info["date"])
+column_with_id = int(info["id"])
+column_with_name = int(info["attribute"])
 
 #Читаем названия таблиц для которых нужно построить запрос
 try:
-    file_table_names = open('table_names.txt','r')
+    file_table_names = ConfigSectionMap("TableName",config)
 except Exception, e:
     print "Somethin goes wrong while reading the table_name file."
     print e
@@ -81,7 +77,7 @@ except Exception, e:
 
 #Массив result_info для хранения словарей с информацией о таблицах (название таблицы и названия ее колонок)
 result_info = []
-table_names = file_table_names.read().split("\n")
+table_names = file_table_names["name"].split(",")
 
 #получаем информацию о таблицах из БД
 for table_name in table_names:

@@ -1,4 +1,0 @@
-stud_fam
-stud_nam
-stud_otc
-
