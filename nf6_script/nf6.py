@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import psycopg2, sys, getpass, ConfigParser
+
+#--------------------------------------------------------------------------
 #*************************Вспомогательные функции**************************
 #--------------------------------------------------------------------------
 #вспомогательная функция для парсинга конфигурационного файла.
@@ -175,7 +177,7 @@ try:
 except Exception, e:
     print "Somethin goes wrong while writing the %s file." % sys.argv[1]
     print e
-    print "Exit from programme"
+    print "Exit from program"
     sys.exit()
 
 print "Bye"
